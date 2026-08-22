@@ -140,17 +140,30 @@ function getWindDirection(degrees) {
     return ['北', '东北', '东', '东南', '南', '西南', '西', '西北'][Math.round(degrees / 45) % 8];
 }
 
+async function getLocation() {
+    try {
+        const response = await fetch('https://ipwho.is/');
+        const data = await response.json();
+        if (response.ok && data.success && data.city && data.latitude && data.longitude) {
+            return { city: data.city, latitude: data.latitude, longitude: data.longitude };
+        }
+    } catch (error) {
+        console.warn('Primary location service unavailable');
+    }
+
+    const response = await fetch('https://ipinfo.io/json');
+    const data = await response.json();
+    const [latitude, longitude] = (data.loc || '').split(',').map(Number);
+    if (!response.ok || !data.city || !latitude || !longitude) throw new Error('City location unavailable');
+    return { city: data.city, latitude, longitude };
+}
+
 async function getWeather() {
     try {
-        const ipResponse = await fetch('https://ipwho.is/');
-        if (!ipResponse.ok) throw new Error(`IP location request failed: ${ipResponse.status}`);
+        const location = await getLocation();
+        $('#city_text').html(location.city);
 
-        const ipData = await ipResponse.json();
-        const city = ipData.city;
-        if (!ipData.success || !city || !ipData.latitude || !ipData.longitude) throw new Error('City location unavailable');
-        $('#city_text').html(city);
-
-        const weatherResponse = await fetch(`https://api.open-meteo.com/v1/forecast?latitude=${ipData.latitude}&longitude=${ipData.longitude}&current=temperature_2m,weather_code,wind_speed_10m,wind_direction_10m&timezone=auto`);
+        const weatherResponse = await fetch(`https://api.open-meteo.com/v1/forecast?latitude=${location.latitude}&longitude=${location.longitude}&current=temperature_2m,weather_code,wind_speed_10m,wind_direction_10m&timezone=auto`);
         if (!weatherResponse.ok) throw new Error(`Weather request failed: ${weatherResponse.status}`);
 
         const weather = await weatherResponse.json();
