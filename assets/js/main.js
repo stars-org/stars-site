@@ -45,7 +45,7 @@ switch (true) {
 }
 
 //加载完成后执行
-window.addEventListener('load', function () {
+window.addEventListener('DOMContentLoaded', function () {
 
     //载入动画
     $('#loading-box').attr('class', 'loaded');
@@ -129,31 +129,40 @@ $('#hitokoto').click(function () {
 });
 
 //获取天气
-const add_id = "wrknltonr0foslhs";
-const app_secret = "Nlh1c0F6d0ZDU2pDR0J3YVBVbkhudz09";
-const key = "433f0c48615a48dfaf2f2b2444297e79";
-function getWeather() {
-    fetch("https://www.mxnzp.com/api/ip/self?app_id=" + add_id + "&app_secret=" + app_secret)
-        .then(response => response.json())
-        .then(data => {
-            let str = data.data.city
-            let city = str.replace(/市/g, '')
-            $('#city_text').html(city);
-            fetch("https://geoapi.qweather.com/v2/city/lookup?location=" + city + "&number=1&key=" + key)
-                .then(response => response.json())
-                .then(location => {
-                    let id = location.location[0].id
-                    fetch("https://devapi.qweather.com/v7/weather/now?location=" + id + "&key=" + key)
-                        .then(response => response.json())
-                        .then(weather => {
-                            $('#wea_text').html(weather.now.text)
-                            $('#tem_text').html(weather.now.temp)
-                            $('#win_text').html(weather.now.windDir)
-                            $('#win_speed').html(weather.now.windScale)
-                        })
-                })
-        })
-        .catch(console.error);
+const weatherDescriptions = {
+    0: '晴', 1: '大部晴朗', 2: '局部多云', 3: '阴', 45: '雾', 48: '雾凇',
+    51: '小毛毛雨', 53: '毛毛雨', 55: '大毛毛雨', 61: '小雨', 63: '中雨',
+    65: '大雨', 71: '小雪', 73: '中雪', 75: '大雪', 80: '阵雨', 81: '中阵雨',
+    82: '强阵雨', 95: '雷雨', 96: '雷雨伴冰雹', 99: '强雷雨伴冰雹'
+};
+
+function getWindDirection(degrees) {
+    return ['北', '东北', '东', '东南', '南', '西南', '西', '西北'][Math.round(degrees / 45) % 8];
+}
+
+async function getWeather() {
+    try {
+        const ipResponse = await fetch('https://ipwho.is/');
+        if (!ipResponse.ok) throw new Error(`IP location request failed: ${ipResponse.status}`);
+
+        const ipData = await ipResponse.json();
+        const city = ipData.city;
+        if (!ipData.success || !city || !ipData.latitude || !ipData.longitude) throw new Error('City location unavailable');
+        $('#city_text').html(city);
+
+        const weatherResponse = await fetch(`https://api.open-meteo.com/v1/forecast?latitude=${ipData.latitude}&longitude=${ipData.longitude}&current=temperature_2m,weather_code,wind_speed_10m,wind_direction_10m&timezone=auto`);
+        if (!weatherResponse.ok) throw new Error(`Weather request failed: ${weatherResponse.status}`);
+
+        const weather = await weatherResponse.json();
+        const current = weather.current;
+        $('#wea_text').html(weatherDescriptions[current.weather_code] || '天气未知');
+        $('#tem_text').html(Math.round(current.temperature_2m));
+        $('#win_text').html(getWindDirection(current.wind_direction_10m));
+        $('#win_speed').html(Math.round(current.wind_speed_10m / 3.6));
+    } catch (error) {
+        $('#wea_text').html('天气暂不可用');
+        console.error(error);
+    }
 }
 
 getWeather();
